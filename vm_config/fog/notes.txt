@@ -1,0 +1,47 @@
+DEVELOPER NOTES:
+
+- installed docker (see below link for instructions), openssh-client, openssh-server, git, emacs, python3
+https://docs.docker.com/install/linux/docker-ce/ubuntu/
+
+Get ssh working:
+- sshd_config has sshd configuration, put it at /etc/ssh/sshd_config
+- sudo systemctl restart sshd.service
+- On reboot sshd.service will be running, can login with user=root, pass=root
+- Want to come back and use only ssh keys in the future
+
+Setup communication with SDN controller:
+- move fog.service to /etc/systemd/system/
+- move fog.py to /usr/src/
+- move fog.sh to /usr/bin/
+- make sure fog.sh is executable
+	> sudo chmod +x /usr/bin/fog.sh
+-configure the fog service to run upon startup
+	> sudo systemctl enable fog.service
+
+Configure the fog service for your specific network:
+- In fog.sh configure SDN controller ip and interface to send messages out on
+
+To manage docker as a non-root user
+> sudo groupadd docker
+> sudo usermod -aG docker $USER
+$USER --> siotadmin
+
+(^ Permission changes will not take effect until reboot)
+
+
+Configure remote access to docker daemon with systemd unit file (docker documentation)
+Note: Have not secured this connection with TLS yet. . .
+- edit docker.service file
+> sudo systemctl edit docker.service
+- add the following lines
+	[Service]
+	ExecStart=
+	ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375
+(at first accidentally set it to tcp://127.0.0.1:2375 and couldn't connect from outside the local host rip. . . don't do this again)
+- reload systemctl configuration
+> sudo systemctl daemon-reload
+- restart docker
+> sudo systemctl restart docker.service
+- confirm dockerd is listening on the configured port
+> sudo netstat -lntp | grep dockerd
+

@@ -1,0 +1,52 @@
+# ==============================================================================
+# The path for this file should be /etc/network/interfaces
+# Please place it there on your OpenVSwitch VM devices.
+# Change the IP of the bridge interface to your liking
+# ==============================================================================
+
+auto lo
+iface lo inet loopback
+
+auto br0
+iface br0 inet static
+      address 192.168.122.191
+      netmask 255.255.255.0
+      broadcast 192.168.122.255
+      gateway 192.168.122.1
+      up echo nameserver 192.168.122.1 > /etc/resolv.conf
+      
+
+auto ens33
+iface ens33 inet manual
+      pre-up ifconfig ens33 up
+      post-down ifconfig ens33 down
+
+auto ens38
+iface ens38 inet manual
+      pre-up ifconfig ens38 up
+      post-down ifconfig ens38 down
+
+auto ens39
+iface ens39 inet manual
+      pre-up ifconfig ens39 up
+      post-down ifconfig ens39 down
+      
+auto ens40
+iface ens40 inet manual
+      pre-up ifconfig ens40 up
+      post-down ifconfig ens40 down
+      
+auto ens41
+iface ens41 inet manual
+      pre-up ifconfig ens41 up
+      post-down ifconfig ens41 down
+
+auto ens42
+iface ens42 inet manual
+      pre-up ifconfig ens42 up
+      post-down ifconfig ens42 down
+
+
+
+
+

@@ -1,0 +1,31 @@
+DEVELOPER NOTES:
+
+
+- installed openssh-client, openssh-server, openvswitch-switch, openvswitch-common, git, emacs
+
+- sshd_config has sshd configuration, put it at /etc/ssh/sshd_config
+- sudo systemctl restart sshd.service
+- On reboot sshd.service will be running, can login with user=root, pass=root
+- Want to come back and use only ssh keys in the future.
+
+- For openvswitch: PATH=$PATH:/usr/share/openvswitch/scripts for root, ovs-ctl start
+- Will startup on every reboot
+
+- Then need to make a bridge.
+  login as root
+  $ ovs-vsctl add-bridge br0
+  $ ovs-vsctl add-port br0 <interface_name>
+  ... 
+
+- set the controller
+  ovs-vsctl set bridge br0 stp_enable=true # For topologies with cycles
+  ovs-vsctl set-controller br0 tcp:192.168.122.51:6633
+
+- Enable ssh.service
+- Disable NetworkManager.service
+
+- Use /etc/network/interfaces to configure the network. The device should have
+  8 interfaces: 6 specified by the vm (ens33 and ens38-ens42), 1 loopback interface (lo), and 1 logical
+  interface which is just an openvswitch bridge (br0)
+    
+- Specify OpenFlow protocol verison: ovs-vsctl set bridge br0 protocols=OpenFlow10,OpenFlow13

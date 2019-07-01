@@ -1,0 +1,7 @@
+{
+    "yang_json_header": {
+	"Content-type": "application/yang.data+json",
+	"Accept": "application/yang.data+json"
+    },
+    "ctrlr_ip_addr": "192.168.122.190"
+}

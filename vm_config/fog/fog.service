@@ -1,0 +1,9 @@
+[Unit]
+Description = greeting and resource reporting to SDN Controller
+After = network.target
+
+[Service]
+ExecStart = /usr/bin/fog.sh
+
+[Install]
+WantedBy = multi-user.target

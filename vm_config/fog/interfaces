@@ -1,0 +1,23 @@
+# ==============================================================================
+# The path for this file should be /etc/network/interfaces
+# Please place it there on your Fog VM devices.
+# ==============================================================================
+
+auto lo
+iface lo inet loopback
+
+auto ens33
+iface ens33 inet static
+      address 172.16.150.201
+      netmask 255.255.255.0
+      broadcast 172.16.150.255
+      gateway 172.16.150.2
+      up echo nameserver 172.16.150.2 > /etc/resolv.conf
+
+#auto ens33
+#iface ens33 inet static
+#      address 192.168.122.121
+#      netmask 255.255.255.0
+#      broadcast 192.168.122.255
+#      gateway 192.168.122.1
+#      up echo nameserver 192.168.122.1 > /etc/resolv.conf
