@@ -1,4 +1,5 @@
-# The Fog Development Kit (ODL)
+# The Fog Development Kit (FDK)
+Developed by: SCU Internet of Things Research Lab (SIOTLAB)
 
 The Fog Development Kit is a comprehensive edge-fog application development platform, intended to simplify and lower the cost of creating edge-fog applications.
 
