@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import copy
 import json
 import fdk
@@ -37,12 +36,19 @@ class FlowManager(manager.Manager):
         # pushed to table "0" of node "openflow:123"
         self.flows = {}
 
+        # Map of protocol numbers to protocol strings
+        # These are the only protocols supported by FDK, as they are the only
+        # protocols supported by ODL
+        self.proto_map = {
+            6: "tcp",
+            17: "udp",
+            132: "sctp"
+        }
+
         
     def shutdown(self):
         super(FlowManager, self).shutdown()
 
-
-        print("flow mgr shutdown")
         self.delete_all_flows()
             
             
@@ -62,10 +68,10 @@ class FlowManager(manager.Manager):
 
         if drop_priority >= ctrlr_priority:
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: ".format(fname) +
-                   "drop_priority ({}) > ".format(drop_priority) +
-                   "ctrlr_priority ({}).".format(ctrlr_priority)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: ".format(fname) +
+                   # "drop_priority ({}) > ".format(drop_priority) +
+                   # "ctrlr_priority ({}).".format(ctrlr_priority)),
+                  # file = sys.stderr)
             return -1
             
         top_mgr = self.mgrs["top"]
@@ -83,10 +89,10 @@ class FlowManager(manager.Manager):
     def create_enqueue_flows(self, top_id, node_id, table_id, flow_prefix,
                              src_ip_addr, dst_ip_addr, 
                              outport_ofid, queue_id, queue_num,
-                             fog_port, to_fog, priority=2000):
+                             fog_port, proto_num, to_fog, priority=2000):
         flow_ids = []
 
-        flow_id = flow_prefix + "TCP"
+        flow_id = flow_prefix + self.proto_map[int(proto_num)].upper()
 
         # Form skeleton
         payload = self.get_flow_skeleton()
@@ -119,13 +125,16 @@ class FlowManager(manager.Manager):
         self.add_flow_match(payload, "ipv4-source", src_ip_addr + "/32")
         self.add_flow_match(payload, "ipv4-destination", dst_ip_addr + "/32")
 
+        dst_port_str = self.proto_map[int(proto_num)] + "-destination-port"
+        src_port_str = self.proto_map[int(proto_num)] + "-source-port"
+
         if to_fog:
-            self.add_flow_match(payload, "tcp-destination-port", fog_port)
+            self.add_flow_match(payload, dst_port_str, fog_port)
         else:
-            self.add_flow_match(payload, "tcp-source-port", fog_port)
+            self.add_flow_match(payload, src_port_str, fog_port)
             
         # Match TCP
-        self.add_flow_match(payload, "ip-match", {"ip-protocol": 6})
+        self.add_flow_match(payload, "ip-match", {"ip-protocol": proto_num}) # 6})
 
         # Enqueue
         enqueue_type = "set-queue-action"
@@ -148,22 +157,45 @@ class FlowManager(manager.Manager):
         self.create_flow(node_id, table_id, flow_id, payload)
         flow_ids.append(flow["id"])
 
-        if to_fog:
-            del payload["flow"][0]["match"]["tcp-destination-port"]
-            self.add_flow_match(payload, "udp-destination-port", fog_port)
-        else:
-            del payload["flow"][0]["match"]["tcp-source-port"]
-            self.add_flow_match(payload, "udp-source-port", fog_port)
+        # =========================================================================
+        # =========================================================================
 
-        # Construct UDP flow
-        flow_id = flow_prefix + "UDP"
-        flow["id"] = flow_id
-        flow["match"]["ip-match"] = {"ip-protocol": 17}
+        # # Construct UDP flow
+        # if to_fog:
+        #     del payload["flow"][0]["match"]["tcp-destination-port"]
+        #     self.add_flow_match(payload, "udp-destination-port", fog_port)
+        # else:
+        #     del payload["flow"][0]["match"]["tcp-source-port"]
+        #     self.add_flow_match(payload, "udp-source-port", fog_port)
 
-        # Create + track the flow
-        # print("Creating UDP flow {}".format(flow_id))
-        self.create_flow(node_id, table_id, flow_id, payload)
-        flow_ids.append(flow["id"])
+        # flow_id = flow_prefix + "UDP"
+        # flow["id"] = flow_id
+        # flow["match"]["ip-match"] = {"ip-protocol": 17}# proto_num}
+
+        # # Create + track the flow
+        # #print("Creating UDP flow {}".format(flow_id))
+        # self.create_flow(node_id, table_id, flow_id, payload)
+        # flow_ids.append(flow["id"])
+
+        # =========================================================================
+        # =========================================================================
+
+        # # Construct SCTP flow
+        # if to_fog:
+        #     del payload["flow"][0]["match"]["udp-destination-port"]
+        #     self.add_flow_match(payload, "sctp-destination-port", fog_port)
+        # else:
+        #     del payload["flow"][0]["match"]["udp-source-port"]
+        #     self.add_flow_match(payload, "sctp-source-port", fog_port)
+
+        # flow_id = flow_prefix + "SCTP"
+        # flow["id"] = flow_id
+        # flow["match"]["ip-match"] = {"ip-protocol": 132} #proto_num}
+
+        # # Create + track the flow
+        # #print("Creating UDP flow {}".format(flow_id))
+        # self.create_flow(node_id, table_id, flow_id, payload)
+        # flow_ids.append(flow["id"])
 
         return flow_ids
 
@@ -189,7 +221,7 @@ class FlowManager(manager.Manager):
             if not node_id.startswith("openflow"):
                 continue
 
-            # print("Pushing flows for {}".format(node_id))
+            #print("Pushing flows for {}".format(node_id))
             
             # Go through termination points for this node and collect them in a list
             for tp in cur_node_data["termination-point"]:
@@ -241,7 +273,7 @@ class FlowManager(manager.Manager):
                 oj = j
                 while (j != i):
                     action_type = "output-action"
-                    # print("j=" + str(j))
+                    # #print("j=" + str(j))
                     action_data = {
                         "output-node-connector": tps[j],
                         "max-length": "65535"
@@ -264,9 +296,9 @@ class FlowManager(manager.Manager):
                 self.create_flow(node_id, table_id, flow_id, payload)
 
                 # debug
-                # print("pushing switch flows")
-                # print("i=" + str(i) + "\n\n" + json.dumps(payload, indent=3))
-                # print(len(payload["flow"][0]["instructions"]["instruction"][0]["apply-actions"]["action"]))
+                # #print("pushing switch flows")
+                # #print("i=" + str(i) + "\n\n" + json.dumps(payload, indent=3))
+                # #print(len(payload["flow"][0]["instructions"]["instruction"][0]["apply-actions"]["action"]))
                 i += 1
 
 
@@ -281,8 +313,8 @@ class FlowManager(manager.Manager):
         begin tracking the flow.
         """
         # print("CREATING FLOW {} ".format(flow_id) +
-        # "| TABLE {} ".format(table_id) +
-         #    "| NODE {}".format(node_id))
+        #       "| TABLE {} ".format(table_id) +
+        #       "| NODE {}".format(node_id))
         
         # Create the flow
         self._create_flow(node_id, table_id, flow_id, flow_json)
@@ -308,9 +340,18 @@ class FlowManager(manager.Manager):
                "opendaylight-inventory:nodes/node/{}/".format(node_id) +
                "flow-node-inventory:table/{}/flow/{}/".format(table_id, flow_id))
 
+
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        #     print("JSON:")
+        #     print(json.dumps(flow_json, indent=4))
+            
         # Push the flow to the switch
         resp = req.put(url, auth=("admin", "admin"),
                        headers=self.head, data=json.dumps(flow_json))
+
 
 
     def delete_flow(self, node_id, table_id, flow_id):
@@ -319,8 +360,8 @@ class FlowManager(manager.Manager):
         stop tracking the flow.
         """
         # print("DELETING FLOW {} ".format(flow_id) +
-          #    "| TABLE {} ".format(table_id) +
-           #   "| NODE {}".format(node_id))
+        #       "| TABLE {} ".format(table_id) +
+        #       "| NODE {}".format(node_id))
         
         # Delete flow from the node
         self._delete_flow(node_id, table_id, flow_id)
@@ -346,6 +387,11 @@ class FlowManager(manager.Manager):
                "opendaylight-inventory:nodes/node/{}/".format(node_id) +
                "flow-node-inventory:table/{}/flow/{}/".format(table_id, flow_id))
 
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        
         # Delete the flow from the switch
         resp = req.delete(url, auth=("admin", "admin"), headers=self.head)
         
@@ -377,8 +423,8 @@ class FlowManager(manager.Manager):
             #         del self.flows[top_id]
         except KeyError:
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: invalid top/node/table/flow_id".format(fname)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: invalid top/node/table/flow_id".format(fname)),
+                  # file = sys.stderr)
             return -1
 
     def delete_all_flows(self):
@@ -408,17 +454,17 @@ class FlowManager(manager.Manager):
 
         resp = req.get(url, auth=("admin", "admin"), headers=self.head)
         data = resp.json()
-        # print(json.dumps(data, indent=3))
+        # #print(json.dumps(data, indent=3))
 
         # Grab list of all flows, return None if there are no flows
         try:
             # returns list of flows for node-id in table 0
             flows = data["node"][0]["flow-node-inventory:table"][0]["flow"]
         except KeyError:
-            # print("There are no flows for node: {}".format(switch_id))
+            # #print("There are no flows for node: {}".format(switch_id))
             return None
 
-        # print(json.dumps(flows,indent=3))
+        # #print(json.dumps(flows,indent=3))
         return flows
 
     def is_flow_operational(self, node_id, table_id, flow_id):
@@ -461,7 +507,7 @@ class FlowManager(manager.Manager):
             flow["flow"][0]["instructions"]["instruction"][0]["apply-actions"]
         except KeyError:
             fname = sys._getframe().f_code.co_name
-            print("{} - ERROR: malformed json\n\n" + json.dumps(flow, indent=3))
+            #print("{} - ERROR: malformed json\n\n" + json.dumps(flow, indent=3))
             return -1
 
         # Get action list

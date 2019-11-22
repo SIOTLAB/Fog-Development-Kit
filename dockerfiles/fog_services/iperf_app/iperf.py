@@ -9,7 +9,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import json
 import iperf3
 import os
@@ -25,19 +24,26 @@ def main(args):
     data = {}
     edge_ip = result.json['start']['connected'][0]['remote_host']
     data[edge_ip] = {}
-    data[edge_ip]['bandwidth'] =result.json['end']['sum_received']['bits_per_second']
+    # data[edge_ip]['bandwidth'] = result.json['end']['sum_received']['bits_per_second']
 
     # Get individual readings throughout the iperf test
     intervals = result.json['intervals']
-    intervals.pop() # remove last reading
+
+    last = intervals.pop()['sum']['bytes'] * 8 # remove last reading, get bits transmitted
+    count = len(intervals)
+    
     readings = [ ] # store bandwidth for all readings
     for reading in intervals:
-        readings.append(reading['sum']['bits_per_second'])
+        # readings.append(reading['sum']['bits_per_second']) # old
+
+        # Combine last bytes into the other readings (that's what iperf does)
+        readings.append(reading['sum']['bytes']*8 + last/count)
 
     data[edge_ip]['readings'] = readings
-        
-    
-    
+    data[edge_ip]['bandwidth'] = sum(readings)/90 # len(readings)
+    # ^ len(readings) can be 92 or 93, we discard the last results later and
+    # combine them into the readings later.
+
     #print(result.text)
     #print(json.dumps(result.json, indent=3))
     #print(result.json['end']['sum_received']['bits_per_second'])

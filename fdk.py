@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import flow_manager
 import resource_manager
 import topology_manager
@@ -32,7 +31,6 @@ except KeyError:
     print("Error parsing config file {}".format(config_file), sys.stderr)
     exit(0)
 
-
 def main():
     """
     Main entry point to FDK
@@ -54,7 +52,7 @@ def main():
         print("\n\n\n=======================\n\n\n")
         print("HANDLING SHUTDOWN")
         print("\n\n\n=======================\n\n\n")
-        
+
         for mgr_type in mgrs:
             try:
                 mgrs[mgr_type].shutdown()

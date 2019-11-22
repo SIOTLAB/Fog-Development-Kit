@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import json
 import sys
 import time
@@ -61,7 +60,7 @@ class Topology:
         # ^ Also for EVERY neighbor, need src+dst port (used to view
         # bandwidth) -> maybe then use id as key, then "src"+"dst" subkeys map
         # to port ids
-        self.link_capacity = 10000000  # link capacity
+        self.max_link_capacity = 10000000  # link capacity
         self.n = 0                     # num nodes
         self.l = 0                     # num links
 
@@ -174,9 +173,9 @@ class Topology:
         
         # Do not add the link if the nodes are not in the topology
         if src_node_id not in self.nodes or dst_node_id not in self.nodes:
-            print("{}: Nodes {} and/or {} not found - can't add link".
-                  format(fname, src_node_id, dst_node_id),
-                  file=sys.stderr)
+            #print("{}: Nodes {} and/or {} not found - can't add link".
+                  # format(fname, src_node_id, dst_node_id),
+                  # file=sys.stderr)
             return
 
         # Do not add the link if the link already exists
@@ -254,8 +253,8 @@ class Topology:
     def del_link(self, src_node_id, dst_node_id):
         # Ensure both nodes exist
         if src_node_id not in self.nodes or dst_node_id not in self.nodes:
-            print("del_link(): Nodes {} or {} not found - can't delete link",
-                  file=sys.stderr)
+            #print("del_link(): Nodes {} or {} not found - can't delete link",
+                  # file=sys.stderr)
             return
 
         # Del src -> dst edge in graph (+ grab node info)
@@ -281,7 +280,7 @@ class Topology:
         #     del self.links[(dst_port, src_port)]
         # else:
         #     fname = sys._getframe().f_code.co_name
-        #     print("{}: ERROR removing entry from self.links".format(fname),
+        #     #print("{}: ERROR removing entry from self.links".format(fname),
         #           file=sys.stderr)
 
         # Adjust link counter
@@ -304,8 +303,8 @@ class Topology:
 
             # Stop if the port is down
             if port is None:
-                fname = sys._getframe().f_code.co_name
-                print("{}: Port {} not found. Exiting.".format(fname, tp_ofid))
+                # fname = sys._getframe().f_code.co_name
+                # print("{}: Port {} not found. Exiting.".format(fname, tp_ofid))
                 return
 
             # Adjust the link reservation amount
@@ -372,8 +371,8 @@ class Topology:
             self.n += 1
         except BaseException:
             fname = sys._getframe().f_code.co_name
-            print("{}: Something went wrong - can't add node {}".
-                  format(fname, node["node-id"]), file=sys.stderr)
+            #print("{}: Something went wrong - can't add node {}".
+                  # format(fname, node["node-id"]), file=sys.stderr)
             return
 
         
@@ -393,9 +392,9 @@ class Topology:
             self.n -= 1
         except KeyError:
             fname = sys._getframe().f_code.co_name
-            print("{}: Node {} not found - can't delete node".
-                  format(fname, node_id),
-                  file=sys.stderr)
+            #print("{}: Node {} not found - can't delete node".
+                  # format(fname, node_id),
+                  # file=sys.stderr)
             return
         
 
@@ -758,7 +757,7 @@ class OVSNode:
                 stats = None
                 for tp_id in self.node_connector_data:
                     port_stat = self.node_connector_data[tp_id]
-                    # print(json.dumps(port_stat, indent=3))
+                    # #print(json.dumps(port_stat, indent=3))
                     if port_stat["flow-node-inventory:name"] == port_ofid:
                         stats = port_stat
             return stats
@@ -769,6 +768,11 @@ class OVSNode:
         try:
             port = self.get_node_connector_data(port_ofid)
             speed = port["flow-node-inventory:current-speed"]
+
+            # For VMs reporting 0 bandwidth speed, assign 1Gbps
+            if speed == 0:
+                speed = 1000000
+                
         except KeyError:
             return None
         
@@ -777,7 +781,7 @@ class OVSNode:
     
     def get_qos_max_rate(self, qos_id):
         # Get current max-rate (must exist) and re-create QoS
-        # print(json.dumps(self.qos_dict[qos_id], indent=3))
+        # #print(json.dumps(self.qos_dict[qos_id], indent=3))
         qos_entries = self.qos_dict[qos_id]["ovsdb:qos-entries"]
         for i in range(0, len(qos_entries)):
             # Find the right qos
@@ -817,7 +821,7 @@ class OVSNode:
 
         # queue_id is not found in the qos
         if q_num is None:
-            print(json.dumps(self.qos_dict[qos_id], indent=3))
+            #print(json.dumps(self.qos_dict[qos_id], indent=3))
             raise KeyError
 
         return q_num

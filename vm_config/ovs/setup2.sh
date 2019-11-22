@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 ovs-vsctl add-br br0 && \
 
 # Add interfaces to the OVS bridge (CUSTOMIZE)

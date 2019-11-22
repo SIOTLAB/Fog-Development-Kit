@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 # Notes:
 # - run setup2.sh after setting up your 6 interfaces. Modify it if you need more/less.
 # - You should run this file within the directory it is found in

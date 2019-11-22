@@ -9,7 +9,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import json
 import re
 import subprocess

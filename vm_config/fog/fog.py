@@ -9,7 +9,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import json
 import re
 import subprocess
@@ -225,11 +224,17 @@ def main(args):
         sys.exit(-1)
 
     interface = args[3]
-    
-    # Perform one greeting
+
+   
+    '''
+    while(1):
+        greeting(ctrlr_ip_addr, ctrlr_greeting_port, host_type, interface)
+        report_resources(ctrlr_ip_addr, ctrlr_cpu_util_port)
+    '''
+
+    # FOR TESTING ONLY SEND GREETING ONCE
     greeting(ctrlr_ip_addr, ctrlr_greeting_port, host_type, interface)
     report_resources(ctrlr_ip_addr, ctrlr_cpu_util_port)
-    
 
 if __name__ == "__main__":
     main(sys.argv)

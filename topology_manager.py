@@ -7,7 +7,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import fdk
 import topology
 import manager
@@ -37,10 +36,8 @@ class TopologyManager(manager.Manager):
     Does not gather/manage resources (See resource_manager.ResourceManager)
     """
     
-    def __init__(self, mgrs, head,
-                 ctrlr_ip_addr="localhost",
+    def __init__(self, mgrs, head, ctrlr_ip_addr="localhost",
                  open_link_capacity=100000000):
-        
         # Call Manager constructor
         super().__init__(mgrs, head, ctrlr_ip_addr)
 
@@ -67,21 +64,19 @@ class TopologyManager(manager.Manager):
         # Greetings remain unserviced when a device greets the FDK but has not
         # been discovered by ODL
         self.unserviced_greetings = {}
-
+        
         # Init functions (Moved outside of Constructor - should be called after
         # FlowManager is initialized
         # self.update_topology()
         # self.init_link_qos()
         
         # Debug: print the topology data
-        # print(json.dumps(self.network_topology, indent=3))
+        # #print(json.dumps(self.network_topology, indent=3))
 
 
     def shutdown(self):
         super(TopologyManager, self).shutdown()
 
-        print("top mgr shutdown")
-        
         # Release any held mutexes
         for top_id in self.tops:
             cur_top = self.tops[top_id]
@@ -91,7 +86,7 @@ class TopologyManager(manager.Manager):
                 # Already unlocked - do nothing
                 pass
 
-        self.shutdown_link_qos()    
+        self.shutdown_link_qos()
 
         for top_id in self.tops:
             # Attempt to close any open sockets
@@ -199,9 +194,9 @@ class TopologyManager(manager.Manager):
 
             if elapsed_time > interval:
                 fname = sys._getframe().f_code.co_name
-                print("{} WARNING: update_topology took {}s > {}s (interval)".
-                      format(fname, elapsed_time, interval),
-                      file=sys.stderr)
+                #print("{} WARNING: update_topology took {}s > {}s (interval)".
+                      # format(fname, elapsed_time, interval),
+                      # file=sys.stderr)
                 # return
             else:
                 time.sleep(interval - elapsed_time)
@@ -356,7 +351,7 @@ class TopologyManager(manager.Manager):
 
                     new_tp = False
                     for tp in tp_info:
-                        #print(tp)
+                        ##print(tp)
                         # Skip bridges and other non-default ports
                         if "ovsdb:interface-type" in tp:
                             continue
@@ -371,15 +366,15 @@ class TopologyManager(manager.Manager):
                             tp_stats = cur_node.get_node_connector_data(tp_ofid)
 
                             if tp_stats is None:
-                                # print("TPOFPORT NOT FOUND ")
+                                # #print("TPOFPORT NOT FOUND ")
                                 continue
 
                             tp_ofid = tp_stats["id"]
-                            # print("FOUND " + tp_ofid)
+                            # #print("FOUND " + tp_ofid)
 
                         # cur_node.port_dict[tp_ofid] = {
-                        #     "info": tp,
-                        #     "port-qos": {}
+                        #      "info": tp,
+                        #      "port-qos": {}
                         # }
 
                         # Skip over ports which are already in the dict
@@ -403,10 +398,12 @@ class TopologyManager(manager.Manager):
                     # But may assist keeping data consistent between threads
                     cur_top.release_mutex(sys._getframe().f_code.co_name)
 
+                    
+
 # ==============================================================================
 # Greeting Threads
 # ==============================================================================
-                    
+
     def start_unserviced_greeting_handler(self, top_id="flow:1", interval=1.0):
         self.threads["unserviced_greeting_handler"] = threading.Thread(
             target=self.__start_unserviced_greeting_handler,
@@ -469,7 +466,7 @@ class TopologyManager(manager.Manager):
         self.socks["greeting"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socks["greeting"].bind((HOST, PORT))
         self.socks["greeting"].listen()
-        # print("listening on", (HOST, PORT))
+        #print("listening on", (HOST, PORT))
         self.socks["greeting"].setblocking(False)
 
         # Select self.socks["greeting"] for I/O event monitoring 
@@ -492,7 +489,7 @@ class TopologyManager(manager.Manager):
                     
     def accept_wrapper(self, sock, sel):
         conn, addr = sock.accept()  # Should be ready to read
-        print("accepted connection from", addr)
+        #print("accepted connection from", addr)
         conn.setblocking(False)
         data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
         #events = selectors.EVENT_READ | selectors.EVENT_WRITE
@@ -500,7 +497,8 @@ class TopologyManager(manager.Manager):
         try:
             sel.register(conn, events, data=data)
         except KeyError:
-            print("Socket is already registered. Exiting")
+            print("WARNING - Socket is already registered. Exiting")
+
         
     def service_greeting(self, top_id, key, mask, sel):
         sock = key.fileobj
@@ -509,10 +507,12 @@ class TopologyManager(manager.Manager):
             recv_data = sock.recv(1024)  # Should be ready to read
             if recv_data:
                 # Decode the data received
-                print("Received data from", data.addr[0])
+                if __debug__:
+                    print("Received data from", data.addr[0])
                 raw_data = recv_data.decode()
                 greeting = json.loads(raw_data)
-                print(json.dumps(greeting, indent=3))
+                if __debug__:
+                    print(json.dumps(greeting, indent=3))
 
                 # Attempt to service the greeting
                 self.__service_greeting(top_id, sock, greeting, True)
@@ -521,7 +521,8 @@ class TopologyManager(manager.Manager):
                 # (moved to __service_greeting, only ACKs once greeting is complete)
                 # sock.sendall(" ".encode())
             else:
-                print("closing connection to", data.addr)
+                if __debug__:
+                    print("closing connection to", data.addr)
                 sel.unregister(sock)
                 sock.close()
 
@@ -537,8 +538,8 @@ class TopologyManager(manager.Manager):
             docker_port = greeting["docker_port"]
         except KeyError:
             fname = sys._getframe().f_code.co_name
-            print("{} ERROR - Malformed greeting. Skipping.".
-                  format(fname))
+            print("{} ERROR - Malformed greeting. Skipping.".format(fname),
+                  file=sys.stderr)
             return False
         
         try:
@@ -547,8 +548,10 @@ class TopologyManager(manager.Manager):
             # Greeting received before the topology receives it!
             # Should track it and service later, unless already tracked
             fname = sys._getframe().f_code.co_name
-            print(("{} WARNING - ".format(fname) +
-                   "{} not in topology {}. ".format(node_id, top_id)))
+            
+            print(("{} WARNING - greeting received from".format(fname) +
+                   "{} which is not in topology {}. ".format(node_id, top_id)),
+                  file=sys.stderr)
             
             if should_track:
                 self.track_greeting(top_id, sock, greeting)
@@ -570,6 +573,11 @@ class TopologyManager(manager.Manager):
 
         # Add Fog nodes to docker swarm
         if(isinstance(cur_top.nodes[node_id], topology.FogNode)):
+            # Return if node is already in the swarm
+            if (node_id in  self.mgrs["res"].swarm.nodes):
+                if __debug__:
+                    print("Received greeting from fog node that is already in the swarm", file=sys.stderr)
+                return
             fog_ip = cur_top.nodes[node_id].ip_addr
             fog_port = cur_top.nodes[node_id].docker_port
             # TODO: Add docker port for fog node here
@@ -578,7 +586,9 @@ class TopologyManager(manager.Manager):
             swarm_node = self.mgrs["res"].swarm.nodes[node_id]
             mem_max = int(swarm_node["Description"]["Resources"]["MemoryBytes"])
             cur_top.nodes[node_id].mem_max = int(mem_max/math.pow(10,6)) # convert to MB
-            # print(cur_top.nodes[node_id].mem_max)
+
+            # if __debug__:
+            #     print(cur_top.nodes[node_id].mem_max)
 
         # ACK that the greeting has been successful
         sock.sendall(" ".encode())
@@ -609,7 +619,7 @@ class TopologyManager(manager.Manager):
         # self.unserviced_greetings[top_id][node_id]["socket"].close()
         del self.unserviced_greetings[top_id][node_id]
 
-            
+        
 # ==============================================================================
 # Bandwidth Allocation / QoS / Queue API
 #
@@ -706,7 +716,7 @@ class TopologyManager(manager.Manager):
                 
                 for queue in queues:
                     cur_q_id = queue["queue-ref"].rsplit("'", 2)[-2]
-                    # print(cur_q_id + " vs " + q_id)
+                    # #print(cur_q_id + " vs " + q_id)
                     if q_id == cur_q_id:
                         return True
 
@@ -783,14 +793,14 @@ class TopologyManager(manager.Manager):
     def add_queue_other_config(self, queue_dict, key, val):
         if not isinstance(key, str):
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: key must be a string".format(fname)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: key must be a string".format(fname)),
+                  # file = sys.stderr)
             return -1
 
         if not isinstance(val, str):
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: val must be a string".format(fname)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: val must be a string".format(fname)),
+                  # file = sys.stderr)
             return -1
 
         queue_dict["ovsdb:queues"][0]["queues-other-config"].append({
@@ -809,7 +819,7 @@ class TopologyManager(manager.Manager):
         """
 
         # Create the queue
-        # print ("Creating queue {} on node {}".format(q_id, node_id))
+        # print("Creating queue {} on node {}".format(q_id, node_id))
         queue_dict = self.__create_queue(node_id, q_id, max_rate)
         
         while True:
@@ -852,6 +862,14 @@ class TopologyManager(manager.Manager):
         queue_dict = self.add_queue_other_config(queue_dict, "max-rate",
                                                  str(max_rate))
 
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        #     print("JSON:")
+        #     print(json.dumps(queue_dict, indent=4))
+            
+        
         # Make the request
         resp = req.put(url, auth=("admin", "admin"),
                        headers=self.head, data=json.dumps(queue_dict))
@@ -862,7 +880,7 @@ class TopologyManager(manager.Manager):
     def delete_queue(self, node_id, q_id):
         """ Delete a queue on the specified node. It must be an OVSNode. """
 
-        # print ("Deleting queue {} on node {}".format(q_id, node_id))
+        # print("Deleting queue {} on node {}".format(q_id, node_id))
         
         # Delete the queue
         self.__delete_queue(node_id, q_id)
@@ -900,6 +918,11 @@ class TopologyManager(manager.Manager):
                "network-topology:network-topology/topology/{}/".format(ovsdb_top_id) +
                "node/{}/ovsdb:queues/{}".format(ovsdb_id.replace("/", "%2F"), q_id))
 
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        
         # Make request
         resp = req.delete(url, auth=("admin", "admin"), headers=self.head)
 
@@ -947,14 +970,14 @@ class TopologyManager(manager.Manager):
         """ Set qos-other-config in qos_dict """
         if not isinstance(key, str):
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: key must be a string".format(fname)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: key must be a string".format(fname)),
+                  # file = sys.stderr)
             return -1
 
         if not isinstance(val, str):
             fname = sys._getframe().f_code.co_name
-            print(("{} - ERROR: val must be a string".format(fname)),
-                  file = sys.stderr)
+            #print(("{} - ERROR: val must be a string".format(fname)),
+                  # file = sys.stderr)
             return -1
         
         qos_dict["ovsdb:qos-entries"][0]["qos-other-config"].append({
@@ -970,7 +993,7 @@ class TopologyManager(manager.Manager):
         Add queues later using the payload generated here.
         """
 
-        # print ("Creating qos {} on node {}".format(qos_id, node_id))
+        # print("Creating qos {} on node {}".format(qos_id, node_id))
         # Create the QoS
         temp = self.__create_qos(node_id, qos_id, max_rate, qos_dict)
         qos_dict = temp
@@ -988,7 +1011,7 @@ class TopologyManager(manager.Manager):
         Helper function to create_qos(). 
         Creates a QoS but doesn't check that it actually exists afterwards
         """
-        # print("__create_qos: before mod - Putting qos {} on {}".format(qos_id, node_id))
+        # #print("__create_qos: before mod - Putting qos {} on {}".format(qos_id, node_id))
         # Get the necessary data
         try:
             top_id = self.switchid_to_oftopid[node_id]
@@ -1015,7 +1038,7 @@ class TopologyManager(manager.Manager):
             qos_dict = self.add_qos_other_config(qos_dict, "max-rate",
                                                  str(max_rate))
         else:
-            # print("QoS {} exists. Modifying.".format(qos_id))
+            #print("QoS {} exists. Modifying.".format(qos_id))
             
             # Remove old max-rate config
             other_config = qos_dict["ovsdb:qos-entries"][0]["qos-other-config"]
@@ -1028,8 +1051,15 @@ class TopologyManager(manager.Manager):
             qos_dict = self.add_qos_other_config(qos_dict, "max-rate",
                                                  str(max_rate))
 
-        # print("__create_qos: After mod - Putting qos {} on {}".format(qos_id, node_id))
-        # print(json.dumps(qos_dict, indent=3))
+        # #print("__create_qos: After mod - Putting qos {} on {}".format(qos_id, node_id))
+        # #print(json.dumps(qos_dict, indent=3))
+
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        #     print("JSON:")
+        #     print(json.dumps(qos_dict, indent=4))
 
         resp = req.put(url, auth=("admin", "admin"),
                        headers=self.head, data=json.dumps(qos_dict))
@@ -1042,7 +1072,7 @@ class TopologyManager(manager.Manager):
         Delete a QoS. You MUST delete ALL queues on the QoS before this.
         """
 
-        # print ("Deleting qos {} on node {}".format(qos_id, node_id))
+        # print("Deleting qos {} on node {}".format(qos_id, node_id))
 
         # Delete the qos
         self.__delete_qos(node_id, qos_id)
@@ -1078,11 +1108,11 @@ class TopologyManager(manager.Manager):
         
         if len(qos_dict["ovsdb:qos-entries"][0]["queue-list"]) != 0:
             fname = sys._getframe().f_code.co_name
-            print("{} - ERROR: You MUST delete ALL ".format(fname) +
-                  "queues on a QoS before deleting the QoS",
-                  file=sys.stderr)
-            # print(qos_dict["ovsdb:qos-entries"][0]["queue-list"])
-            # print(json.dumps(self.network_topology, indent=3))
+            #print("{} - ERROR: You MUST delete ALL ".format(fname) +
+                  # "queues on a QoS before deleting the QoS",
+                  # file=sys.stderr)
+            # #print(qos_dict["ovsdb:qos-entries"][0]["queue-list"])
+            # #print(json.dumps(self.network_topology, indent=3))
             
             return
         
@@ -1092,19 +1122,24 @@ class TopologyManager(manager.Manager):
                "node/{}/".format(ovsdb_id.replace("/", "%2F")) +
                "ovsdb:qos-entries/{}".format(qos_id))
 
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+
         resp = req.delete(url, auth=("admin", "admin"), headers=self.head)
 
 
-    def add_qos_queue(self, node_id, qos_id, q_id):
+    def place_queue_on_qos(self, node_id, qos_id, q_id):
         """ 
         Add a queue to a QoS and push it to a switch.
         Also reserves link bandwidth
         """
 
-        # print ("Putting queue {} on qos {} (node {})".format(q_id, qos_id, node_id))
+        # print("Putting queue {} on qos {} (node {})".format(q_id, qos_id, node_id))
 
         # Put the queue on the qos
-        self.__add_qos_queue(node_id, qos_id, q_id)
+        self.__place_queue_on_qos(node_id, qos_id, q_id)
 
         # Current
         cur_node = self.get_ovsnode(node_id)
@@ -1123,7 +1158,7 @@ class TopologyManager(manager.Manager):
             if self.is_queue_on_qos(node_id, q_id, qos_id):
                 cur_node.set_queue_on_qos(q_id, qos_id)
                 break
-            # print("Queue not on the specified QoS...")
+            #print("Queue not on the specified QoS...")
 
         # # Get the max-rate of the queue
         # for config in queue["queues-other-config"]:
@@ -1134,10 +1169,10 @@ class TopologyManager(manager.Manager):
         # cur_top.add_link_reservation(tp_ofid, max_rate)
         
 
-    def __add_qos_queue(self, node_id, qos_id, q_id):
+    def __place_queue_on_qos(self, node_id, qos_id, q_id):
                       #ovsdb_top_id, ovsdb_id, qos_dict, q_id):
         """
-        Helper function to add_qos_queue().
+        Helper function to place_queue_on_qos().
         Adds a QoS to a queue but doesn't double check this afterwards.
         """
         
@@ -1188,14 +1223,14 @@ class TopologyManager(manager.Manager):
             )
         }
         qos_dict["ovsdb:qos-entries"][0]["queue-list"].append(queue)
-        # print("Putting qos_dict on {}".format(node_id))
-        # print(json.dumps(qos_dict, indent=3))
+        # #print("Putting qos_dict on {}".format(node_id))
+        # #print(json.dumps(qos_dict, indent=3))
 
         # Commit the changed dict
         resp = self.create_qos(node_id, qos_id, max_rate, qos_dict)
 
 
-    def remove_qos_queue(self, node_id, qos_id, q_id):
+    def remove_queue_from_qos(self, node_id, qos_id, q_id):
         """
         Delete a Queue from a QoS and push the change to a switch.
         Also deallocates link bandwidth
@@ -1203,9 +1238,9 @@ class TopologyManager(manager.Manager):
         queues. No shifting that way.
         """
 
-        # print ("Removing queue {} from qos {} (node {})".format(q_id, qos_id, node_id))
+        # print("Removing queue {} from qos {} (node {})".format(q_id, qos_id, node_id))
         # Remove the queue from the qos
-        self.__remove_qos_queue(node_id, qos_id, q_id)
+        self.__remove_queue_from_qos(node_id, qos_id, q_id)
 
         cur_node = self.get_ovsnode(node_id)
         # # Remove the link reservation
@@ -1233,10 +1268,10 @@ class TopologyManager(manager.Manager):
                 break
     
 
-    def __remove_qos_queue(self, node_id, qos_id, q_id): # CHANGE 
+    def __remove_queue_from_qos(self, node_id, qos_id, q_id): # CHANGE 
                          #node_id, qos_dict, q_num):
         """
-        Helper function to remove_qos_queue().
+        Helper function to remove_queue_from_qos().
         Removes a QoS from a queue but doesn't double check that this is the
         case afterwards.
         """
@@ -1335,7 +1370,7 @@ class TopologyManager(manager.Manager):
     # br_uuid: "ovsdb://uuid/123-345-.../bridge/br0" -> ovsdb_id
     # tp_id: "eth0", etc. == ovsdb:name -> int uuid, port uuid
     # qos_id: pick one! 
-    def add_qos_to_tp(self, node_id, qos_id, tp_ofid):
+    def place_qos_on_port(self, node_id, qos_id, tp_ofid):
         """
         Add the qos with id qos_id to the switch.
         tp_ofid is assumed to be the openflow id of the port
@@ -1344,7 +1379,7 @@ class TopologyManager(manager.Manager):
 
         # print("Putting qos {} on tp {} (node{})".format(qos_id, tp_ofid, node_id))
 
-        tp_dict = self.__add_qos_to_tp(node_id, qos_id, tp_ofid)
+        tp_dict = self.__place_qos_on_port(node_id, qos_id, tp_ofid)
         
         while True:
             if self.is_qos_on_tp(node_id, tp_ofid):
@@ -1354,9 +1389,9 @@ class TopologyManager(manager.Manager):
                 break
             
     
-    def __add_qos_to_tp(self, node_id, qos_id, tp_ofid):
+    def __place_qos_on_port(self, node_id, qos_id, tp_ofid):
         """
-        Helper function to add_qos_to_tp()
+        Helper function to place_qos_on_port()
         """
         
         # Extract OF portnum from tp_ofid
@@ -1385,7 +1420,7 @@ class TopologyManager(manager.Manager):
 
         # Exit if the topology does not exist
         if cur_top_data is None:
-            print("No top data")
+            #print("No top data")
             return
 
         # Search for the bridge
@@ -1398,8 +1433,8 @@ class TopologyManager(manager.Manager):
         # Exit if the bridge does not exist
         # (Bridge is considered a node in OVSDB)
         if cur_node_data is None:
-            print("No node data: " + br_ovsdb_id)
-            # print(json.dumps(cur_top_data, indent=3))
+            #print("No node data: " + br_ovsdb_id)
+            # #print(json.dumps(cur_top_data, indent=3))
             return
 
         # Search for the termination point (port)
@@ -1416,7 +1451,7 @@ class TopologyManager(manager.Manager):
 
         # Exit if the tp does not exist
         if cur_tp_data is None:
-            print("No tp data")
+            #print("No tp data")
             return
 
         cur_tp_data = cur_node.port_dict[tp_ofid]
@@ -1475,21 +1510,27 @@ class TopologyManager(manager.Manager):
                "termination-point/{}".format(tp_id))
 
         # tp_dict = { "termination-point": [ tp_dict ] }
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+        #     print("JSON:")
+        #     print(json.dumps(tp_dict, indent=4))
 
-        #print(url)
-        #print(json.dumps(tp_dict, indent=3))
+        ##print(url)
+        ##print(json.dumps(tp_dict, indent=3))
         resp = req.put(url, auth=("admin", "admin"),
                        headers=self.head, data=json.dumps(tp_dict))
-        #print(resp.text)
+        ##print(resp.text)
             
         return tp_dict
 
 
-    def remove_qos_from_tp(self, node_id, tp_ofid):
+    def remove_qos_from_port(self, node_id, tp_ofid):
         """ Remove ALL QoS from a tp. Does NOT delete the QoS"""
 
         # print("Removing ALL qos from tp {} (node{})".format(tp_ofid, node_id))
-        qos_id = self.__remove_qos_from_tp(node_id, tp_ofid)
+        qos_id = self.__remove_qos_from_port(node_id, tp_ofid)
         
         while True:
             if not self.is_qos_on_tp(node_id, tp_ofid):
@@ -1499,9 +1540,9 @@ class TopologyManager(manager.Manager):
                 break
 
         
-    def __remove_qos_from_tp(self, node_id, tp_ofid):
+    def __remove_qos_from_port(self, node_id, tp_ofid):
         """
-        Helper function to remove_qos_from_tp()
+        Helper function to remove_qos_from_port()
         """
         
         # Get the necessary data
@@ -1520,11 +1561,11 @@ class TopologyManager(manager.Manager):
         tp_dict = copy.deepcopy(cur_node.port_dict[tp_ofid])
         tp_id = self.get_tp_field(tp_dict, "ovsdb:name")
         # Return if no qos exists.
-        #print(json.dumps(tp_dict, indent=3))
+        ##print(json.dumps(tp_dict, indent=3))
 
         # Try to get and unset QoS 
         try:
-            #print(json.dumps(tp_dict, indent=3))
+            ##print(json.dumps(tp_dict, indent=3))
             qos_entry = self.get_tp_field(tp_dict, "ovsdb:qos-entry")
             qos_id = qos_entry["qos-ref"].rsplit("'", 2)[-2]
             self.unset_tp_field(tp_dict, "ovsdb:qos-entry")
@@ -1545,11 +1586,16 @@ class TopologyManager(manager.Manager):
                "node/{}/".format(br_ovsdb_id.replace("/", "%2F")) +
                "termination-point/{}".format(tp_id))
 
+        # if __debug__:
+        #     fname = sys._getframe().f_code.co_name
+        #     print("%s:" % fname)
+        #     print("URL: %s" % url)
+
         # tp_dict = { "termination-point": [ tp_dict ] }
 
         resp = req.put(url, auth=("admin", "admin"),
                        headers=self.head, data=json.dumps(tp_dict))
-        
+
         return qos_id
 
 
@@ -1559,16 +1605,19 @@ class TopologyManager(manager.Manager):
         # Put qoses on ports
         # ^ NEED TO APPROPRIATELY TRACK THESE DURING EXECUTION FOR shutdown()
         # AND need to add update method to update qos accordingly
-        #print(self.switchid_to_oftopid)
+        ##print(self.switchid_to_oftopid)
         for node_id in self.switchid_to_oftopid:
+            # if __debug__:
+            #     print(node_id)
             top_id = self.switchid_to_oftopid[node_id]
             cur_top = self.tops[top_id]
             cur_node = cur_top.nodes[node_id]
-            # print(cur_node.port_dict)
+            # #print(cur_node.port_dict)
+                
             for tp_ofid in cur_node.port_dict:
                 # Get the port num in string form
                 tp_dict = cur_node.port_dict[tp_ofid]
-                #print(json.dumps(cur_node.port_dict, indent=3))
+                ##print(json.dumps(cur_node.port_dict, indent=3))
                 try:
                     ofport = str(self.get_tp_field(tp_dict, "ovsdb:ofport"))
                 except KeyError:
@@ -1578,24 +1627,32 @@ class TopologyManager(manager.Manager):
                     
                 # Create a queue for the port
                 queue_id = "default" + str(ofport)
+                # if __debug__:
+                #     print("Queue " + queue_id + " for " + node_id)
                 self.create_queue(node_id, queue_id, self.open_link_capacity)
 
                 #time.sleep(0.1)
 
                 # Create a qos for the port
                 qos_id = "defaultqos" + str(ofport)
+                # if __debug__:
+                #     print("qos " + qos_id + " for " + node_id)
                 port_speed = self.get_port_speed(tp_ofid)
                 self.create_qos(node_id, qos_id, port_speed)
 
                 #time.sleep(0.1)
                                 
                 # Put the queue on the QoS
-                self.add_qos_queue(node_id, qos_id, queue_id)
+                # if __debug__:
+                #     print("put queue " + queue_id + " on qos " + qos_id + " for " + node_id)
+                self.place_queue_on_qos(node_id, qos_id, queue_id)
 
                 #time.sleep(0.1)
                 
                 # Put the queue on the QoS
-                self.add_qos_to_tp(node_id, qos_id, tp_ofid)
+                # if __debug__:
+                #     print("put qos " + qos_id + " on tp " + tp_ofid + " for " + node_id)
+                self.place_qos_on_port(node_id, qos_id, tp_ofid)
 
                 #time.sleep(0.1)
 
@@ -1605,31 +1662,28 @@ class TopologyManager(manager.Manager):
                 
     def shutdown_link_qos(self):
         for node_id in self.switchid_to_oftopid:
-            # print("shutting down " + str(node_id))
-
+            ##print(json.dumps(self.switchid_to_oftopid, indent=3))
             top_id = self.switchid_to_oftopid[node_id]
             cur_top = self.tops[top_id]
             cur_node = cur_top.nodes[node_id]
 
-            # print(json.dumps(cur_node.port_dict, indent=3))
-
             # Remove QoSes from ports
             for tp_ofid in cur_node.port_dict.keys():
-                #print(cur_node.port_dict.keys())
-                self.remove_qos_from_tp(node_id, tp_ofid)
+                ##print(cur_node.port_dict.keys())
+                self.remove_qos_from_port(node_id, tp_ofid)
                 
                 # Undo all reservations
                 cur_top.set_link_reservation(tp_ofid, 0) 
             
             #time.sleep(0.1)
+
             # Remove queues from QoSes
             for queue_id in cur_node.queue_dict.keys():
                 qos_id = cur_node.queue_to_qos[queue_id]
-                self.remove_qos_queue(node_id, qos_id, queue_id)
+                self.remove_queue_from_qos(node_id, qos_id, queue_id)
 
             #time.sleep(0.1)
 
-            # print(json.dumps(cur_node.queue_dict, indent=3))
             # Delete queues
             for queue_id in copy.deepcopy(cur_node.queue_dict):
                 self.delete_queue(node_id, queue_id)
@@ -1637,8 +1691,7 @@ class TopologyManager(manager.Manager):
             #time.sleep(0.1)
 
             # Delete QoS'es
-            # print(json.dumps(cur_node.queue_dict, indent=3))
-            for qos_id in copy.deepcopy(cur_node.qos_dict):                
+            for qos_id in copy.deepcopy(cur_node.qos_dict):
                 self.delete_qos(node_id, qos_id)
 
             #time.sleep(0.1)
@@ -1667,8 +1720,8 @@ class TopologyManager(manager.Manager):
                 int_str = str(int_str)
             except BaseException:
                 fname = sys._getframe().f_code.co_name
-                print(("{} - ERROR: int_str should be a string".format(fname)),
-                      file = sys.stderr)
+                #print(("{} - ERROR: int_str should be a string".format(fname)),
+                      # file = sys.stderr)
 
         # Get the number in hex
         mac_str = str(int(int_str, 16))
@@ -1762,12 +1815,12 @@ class TopologyManager(manager.Manager):
             try:
                 data = resp.json()["node-connector"][0]
             except KeyError:
-                print("get_interface(): KeyError parsing json",
-                      file=sys.stderr)
+                #print("get_interface(): KeyError parsing json",
+                      # file=sys.stderr)
                 return
             except BaseException:
-                print("get_interface(): BaseException parsing response",
-                      file=sys.stderr)
+                #print("get_interface(): BaseException parsing response",
+                      # file=sys.stderr)
                 return
 
             # Select interface from the response

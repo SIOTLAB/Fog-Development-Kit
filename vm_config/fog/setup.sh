@@ -9,7 +9,6 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 # Install docker
 apt-get update && \
 apt-get --assume-yes install \

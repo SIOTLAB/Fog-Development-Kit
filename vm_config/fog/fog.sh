@@ -9,6 +9,5 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 # Format /usr/bin/python3 fog.py <Controller IP address> <Fog or Edge> <interface where greeting is sent on>
-/usr/bin/python3 /usr/src/fog.py 172.16.150.244 Fog ens33
+/usr/bin/python3 /usr/src/fog.py 10.16.224.190 Fog ens33

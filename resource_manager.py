@@ -7,23 +7,23 @@
 # 
 # In the Internet of Things Research Lab, Santa Clara University, CA, USA
 
-
 import manager
 
-import docker
 import json
 import math
-import os
 import random
 import requests as req
 import selectors
 import socket
-import subprocess
 import sys
 import time
 import timeit
 import threading
 import types
+import subprocess
+import docker
+import os
+import dary_heap
 
 import topology
 import topology_manager
@@ -48,7 +48,8 @@ class ResourceManager(manager.Manager):
         # Allocated resources - used for deallocation later
         self.allocated_resources = {
             # "edge-node-id": {
-            #    "port": {
+            #   "fog-node-id": {
+            #     "port": {
             #        "src-ip": string,
             #        "dst-ip": string,
             #        "cpu_pct": num,
@@ -75,6 +76,7 @@ class ResourceManager(manager.Manager):
             #         }
             #         .. 
             #       ]
+            #   }
             #
 
             
@@ -98,6 +100,54 @@ class ResourceManager(manager.Manager):
             #    ]
             # }
         }
+
+        """
+        Files for collecting overhead data
+        """
+        '''
+        try:
+            req_raa_fp = open("req_raa_overhead.txt", 'a')
+            req_docker_fp = open("req_docker_overhead.txt",'a' )
+            req_resp_fp = open("req_resp_overhead.txt", 'a')
+            req_total_overhead_fp = open("req_total_overhead.txt", 'a')
+            shutdown_daa_fp = open("daa_overhead.txt", 'a')
+            shutdown_docker_fp = open("shutdown_docker_overhead.txt", 'a')
+            shutdown_resp_fp = open("shutdown_resp_overhead.txt", 'a')
+            shutdown_total_overhead_fp = open("shutdown_total_overhead.txt", "a")
+        except BaseException as e:
+            #print(e)
+            print("ERROR OPENING FILES. EXITING")
+            sys.exit(-1)
+    
+        self.req_raa_fp = req_raa_fp
+        self.req_docker_fp = req_docker_fp
+        self.req_resp_fp = req_resp_fp
+        self.req_total_overhead_fp = req_total_overhead_fp
+        self.shutdown_daa_fp = shutdown_daa_fp
+        self.shutdown_docker_fp = shutdown_docker_fp
+        self.shutdown_resp_fp = shutdown_resp_fp
+        self.shutdown_total_overhead_fp = shutdown_total_overhead_fp
+        '''
+
+        try:
+            self.test_data_fp = open("test_data_new.json", 'w+')
+            try:
+                test_data = json.load(self.test_data_fp)
+            except BaseException:
+                test_data = {}
+        except BaseException:
+            print("Error opening file", file=sys.stderr)
+            sys.exit(-1)
+        
+        self.test_data = test_data
+
+        
+        # Get current request id
+        if "REQ_ID" in os.environ:
+            self.req_id = int(os.environ.get("REQ_ID"))
+        else:
+            os.environ["REQ_ID"] = "0"
+            self.req_id = 0
         
         if swarm is not None:
             self.swarm = swarm
@@ -106,9 +156,13 @@ class ResourceManager(manager.Manager):
 
             
     def shutdown(self):
-        print("res mgr shutdown")
         super(ResourceManager, self).shutdown()
 
+        # write test data to file
+        json.dump(self.test_data, self.test_data_fp)
+        # close file
+        self.test_data_fp.close()
+        
         # shutdown containers
         self.swarm.remove_all_containers()
             
@@ -163,7 +217,7 @@ class ResourceManager(manager.Manager):
 
             if elapsed_time > interval:
                 fname = sys._getframe().f_code.co_name
-                print("{}: ERROR".format(fname), file=sys.stderr)
+                #print("{}: ERROR".format(fname), file=sys.stderr)
                 return
             else:
                 time.sleep(interval - elapsed_time)
@@ -257,11 +311,11 @@ class ResourceManager(manager.Manager):
                 # Make and parse request
                 resp = req.get(url, auth=("admin", "admin"), headers=self.head)
                 try:
-                    # print(json.dumps(resp.json(), indent=3), file=sys.stderr)
+                    # #print(json.dumps(resp.json(), indent=3), file=sys.stderr)
                     # index 0 appears to have all information... Not sure why
                     # its in a list
-                    # print(url)
-                    # print(json.dumps(resp.json(), indent=3))
+                    # #print(url)
+                    # #print(json.dumps(resp.json(), indent=3))
                     data = resp.json()["node-connector"][0]
                     key = ("opendaylight-port-statistics:"
                            "flow-capable-node-connector-statistics")
@@ -270,7 +324,7 @@ class ResourceManager(manager.Manager):
                 except Exception as ex:
                     ex_type = type(ex).__name__
                     fname = sys._getframe().f_code.co_name
-                    # print("{}: {} parsing data for {}".format(fname, ex_type, top_id),
+                    # #print("{}: {} parsing data for {}".format(fname, ex_type, top_id),
                     #       file=sys.stderr)
                     continue
 
@@ -341,7 +395,7 @@ class ResourceManager(manager.Manager):
         self.socks["cpu_util"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socks["cpu_util"].bind((HOST, PORT))
         self.socks["cpu_util"].listen()
-        print("listening on", (HOST, PORT))
+        #print("listening on", (HOST, PORT))
         self.socks["cpu_util"].setblocking(False)
 
         # Select self.socks["cpu_util"] for I/O event monitoring 
@@ -379,7 +433,7 @@ class ResourceManager(manager.Manager):
         self.socks["edge_requests"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socks["edge_requests"].bind((HOST, PORT))
         self.socks["edge_requests"].listen()
-        print("listening on", (HOST, PORT))
+        #print("listening on", (HOST, PORT))
         self.socks["edge_requests"].setblocking(False)
 
         # Select self.socks["edge_requests"] for I/O event monitoring 
@@ -417,7 +471,7 @@ class ResourceManager(manager.Manager):
         self.socks["shutdown_requests"] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socks["shutdown_requests"].bind((HOST, PORT))
         self.socks["shutdown_requests"].listen()
-        print("listening on", (HOST, PORT))
+        #print("listening on", (HOST, PORT))
         self.socks["shutdown_requests"].setblocking(False)
 
         # Select self.socks["shutdown_requests"] for I/O event monitoring 
@@ -442,7 +496,7 @@ class ResourceManager(manager.Manager):
     # into a seperate function so that greetings are not broken.
     def accept_connection(self, sock, sel):
         conn, addr = sock.accept()  # Should be ready to read
-        print("accepted connection from", addr)
+        #print("accepted connection from", addr)
         conn.setblocking(False)
         data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
         #events = selectors.EVENT_READ | selectors.EVENT_WRITE
@@ -456,7 +510,7 @@ class ResourceManager(manager.Manager):
         if mask & selectors.EVENT_READ:
             recv_data = sock.recv(1024)  # Should be ready to read
             if recv_data:
-                print("Received", repr(recv_data), "from", data.addr[0])
+                #print("Received", repr(recv_data), "from", data.addr[0])
                 raw_data = recv_data.decode()
                 resources = raw_data.split()
 
@@ -472,7 +526,7 @@ class ResourceManager(manager.Manager):
                         cur_top.nodes[node_id].disk_available = float(resources[2])
                         break
             else:
-                print("closing connection to", data.addr)
+                #print("closing connection to", data.addr)
                 sel.unregister(sock)
                 sock.close()
 
@@ -480,10 +534,11 @@ class ResourceManager(manager.Manager):
     def service_edge(self, top_id, key, mask, sel):
         sock = key.fileobj
         data = key.data
+        
         if mask & selectors.EVENT_READ:
             recv_data = sock.recv(1024)  # Should be ready to read
             if recv_data:
-                print("Received", repr(recv_data), "from", data.addr[0])
+                #print("Received", repr(recv_data), "from", data.addr[0])  
                 # Receive request
                 raw_data = recv_data.decode()
                 request = json.loads(raw_data)
@@ -505,9 +560,11 @@ class ResourceManager(manager.Manager):
                     "ip": <fog-ip>,
                     "port": <fog-port>,
                     "failure-msg": <failure message>
+                    "req_id": <req_id>
                 }
                 '''
-
+                
+                start_time = time.time()
                 # Run RAA on request 
                 # Below is a crude RAA, simply selects an arbitrary fog node
                 cur_top = self.mgrs["top"].get_topology(top_id)
@@ -519,16 +576,19 @@ class ResourceManager(manager.Manager):
                 # docker_port = cur_top.nodes[node_id].docker_port
                 # RAA should return response message
                 # A simple response is constructed below
-                response = self.resource_allocation_algorithm(request, top_id)
+                response = self.resource_alloc_algorithm(request, top_id)
+                raa_overhead = time.time() - start_time
                 node_id = response["node_id"]
                 fog_ip = response["ip"]
                 docker_port = response["port"]
-                
+            
                 # If success, allocate resources for container
                 if response["resp-code"] == 0:
+                    start_time = time.time()
                     resp, service_id = self.swarm.create_container(node_id,
                                                                    request,
                                                                    docker_port)
+                    docker_overhead = time.time() - start_time
                     # Check for error while creating container
                     if resp is not True:
                         response["resp-code"] = -1
@@ -536,13 +596,41 @@ class ResourceManager(manager.Manager):
                     else:
                         response["service_id"] = service_id
 
+                # Add field for request id in response message
+                response["req_id"] = self.req_id
                 # Send success/failure msg to edge node
+                start_time = time.time()
                 sock.sendall(json.dumps(response).encode())
+                resp_overhead = time.time() - start_time
+
+                # Report overhead data to appropriate files
+                #self.req_raa_fp.write("{} {}\n".format(self.req_id, raa_overhead))
+                #self.req_docker_fp.write("{} {}\n".format(self.req_id, docker_overhead))
+                #self.req_resp_fp.write("{} {}\n".format(self.req_id,
+                #resp_overhead))
+
+                # Report overhead data on successful request
+                if response["resp-code"] is 0:
+                    ip = data.addr[0]
+                    if ip in self.test_data:
+                        self.test_data[ip][self.req_id] = {}
+                    else:
+                        self.test_data[ip] = {}
+                        self.test_data[ip][self.req_id] = {}
+
+                    self.test_data[ip][self.req_id]["req_raa_overhead"] = raa_overhead
+                    self.test_data[ip][self.req_id]["req_docker_overhead"] = docker_overhead
+                    self.test_data[ip][self.req_id]["req_resp_overhead"] = resp_overhead
+
+                    # Increment request id
+                    self.req_id += 1
+                    os.environ["REQ_ID"] = str(self.req_id)
             else:
-                print("closing connection to", data.addr)
+                #print("closing connection to", data.addr)
                 sel.unregister(sock)
                 sock.close()
 
+            
                 
     def service_shutdown_request(self, top_id, key, mask, sel):
         sock = key.fileobj
@@ -550,23 +638,38 @@ class ResourceManager(manager.Manager):
         if mask & selectors.EVENT_READ:
             recv_data = sock.recv(1024)  # Should be ready to read
             if recv_data:
-                print("Received", repr(recv_data), "from", data.addr[0])
+                #print("Received", repr(recv_data), "from", data.addr[0])
                 # Receive request
                 raw_data = recv_data.decode()
                 request = json.loads(raw_data)
 
+                # This is for receiving total overhead message
+                if len(request) == 2:
+                    shutdown_total_overhead =request["shutdown_total_overhead"]
+                    req_id = int(request["req_id"])
+                    #self.shutdown_total_overhead_fp.write("{}
+                    #{}\n").format(req_id, shutdown_total_overhead)
+                    self.test_data[data.addr[0]][req_id]["shutdown_total_overhead"]= shutdown_total_overhead
+                    return
+                
                 # Call shutdown api for deallocating all the resources along path
                 # Chris: for right now i am just going to deallocate container
                 node_id = request["node_id"]
                 service_id = request["service_id"]
                 port = request["port"]
+                req_id = request["req_id"]
+                req_total_overhead = request["req_total_overhead"]
 
                 # Resource deallocation algorithm here
-                self.resource_deallocation_algorithm(request, top_id)
-
+                start_time = time.time()
+                self.resource_dealloc_algorithm(request, top_id)
+                daa_overhead = time.time() - start_time
+                
                 # Remove the container
+                start_time = time.time()
                 resp = self.swarm.remove_container(node_id, service_id)
-
+                docker_overhead = time.time() - start_time
+                
                 # create response to send back to edge
                 response = {}
                 if resp is True:
@@ -575,12 +678,165 @@ class ResourceManager(manager.Manager):
                     response["resp-code"] = -1
 
                 # Send success/failure msg to edge node
+                start_time = time.time()
                 sock.sendall(json.dumps(response).encode())
+                resp_overhead = time.time() - start_time
+
+                # Receive shutdown total overhead from edge
+                #recv_data = sock.recv(1024)
+                #shutdown_total_overhead = float(recv_data.decode())
+                
+                # Report overhead data to appropriate files
+                #self.req_total_overhead_fp.write("{} {}\n").format(req_id, req_total_overhead)
+                #self.shutdown_daa_fp.write("{} {}\n".format(req_id, daa_overhead))
+                #self.shutdown_docker_fp.write("{} {}\n".format(req_id, docker_overhead))
+                #self.shutdown_resp_fp.write("{} {}\n".format(req_id,
+                #resp_overhead))
+
+                # Report overhead data
+                ip = data.addr[0]
+                self.test_data[ip][req_id]["req_total_overhead"] = req_total_overhead
+                self.test_data[ip][req_id]["shutdown_daa_overhead"] = daa_overhead
+                self.test_data[ip][req_id]["shutdown_docker_overhead"] = docker_overhead
+                self.test_data[ip][req_id]["shutdown_resp_overhead"] = resp_overhead
+                self.test_data[ip][req_id]["shutdown_timestamp"] = time.time()
             else:
-                print("closing connection to", data.addr)
+                #print("closing connection to", data.addr)
                 sel.unregister(sock)
                 sock.close()
 
+    class wedge:
+        def __init__(self, src_node_id, dst_node_id,
+                     src_port, dst_port, weight):
+            self.src_node_id = src_node_id
+            self.src_port = src_port
+            self.dst_node_id = dst_node_id
+            self.dst_port = dst_port
+            self.weight = weight
+
+        def __gt__(self, wedge2):
+            return self.weight > wedge2.weight
+
+        def __lt__(self, wedge2):
+            return self.weight < wedge2.weight
+
+        def __ge__(self, wedge2):
+            return self.weight >= wedge2.weight
+
+        def __le__(self, wedge2):
+            return self.weight <= wedge2.weight
+
+        def __eq__(self, wedge2):
+            return self.weight == wedge2.weight
+
+        def __ne__(self, wedge2):
+            return self.weight != wedge2.weight
+
+        def __add__(self, wedge2):
+            return self.weight + wedge2.weight
+
+        def __sub__(self, wedge2):
+            return self.weight - wedge2.weight
+
+        def __hash__(self):
+            return (
+                hash(self.src_node_id) ^ hash(self.dst_node_id) ^
+                hash(self.src_port) ^ hash(self.dst_port) ^
+                hash(self.weight)
+            )
+        
+
+    def dijkstra(self, src_node_id, top_id, required_bandwidth):
+        """
+        Dijkstra's algorithm. Should return a previous dictionary that enables
+        traversal of the graph from any node to src_node_id along the shortest
+        path between the two, and a cost dictionary denoting the cost from
+        src_node_id to any other node.
+        """
+
+        top_mgr = self.mgrs["top"]
+        cur_top = top_mgr.get_topology(top_id)
+
+        # This is ans graph
+        cost = {}     # distance
+        previous = {} # parent
+        
+        best = {}     # <T, Wedge>
+
+        # Create optimal heap
+        m = cur_top.get_num_links()
+        n = cur_top.get_num_nodes()
+        d = max(2, m//n)
+        heap = dary_heap.dary_heap(d)
+
+        # Dummy edge onto heap
+        heap.push(self.wedge(src_node_id, src_node_id, 0, 0, 0))
+
+        while(not heap.empty()):
+            # Get min edge
+            e = heap.get_min()
+            heap.pop_min()
+
+            # Add edge to answer if e is not dummy edge or points to itself
+            # (since any self-pointing edge with pos weight can't be on
+            # shortest path)
+            if e.src_node_id != e.dst_node_id:
+                # Track TOTAL cost to e.dst plus information on the path to it
+                cost[e.dst_node_id] = e.weight
+                previous[e.dst_node_id] = {
+                    "dst_node_id": e.dst_node_id,
+                    "dst_port": e.dst_port,
+                    "src_node_id": e.src_node_id, # parent of dst node
+                    "src_port": e.src_port
+                }
+
+            for n in cur_top.get_neighbors(e.dst_node_id):
+                # n is a dict w/ edge information - search src_entry in
+                # topology.py
+
+                # Parse out information on the neighbor nodes + edges to them
+                # print(str(n))
+                n_id = n["dst_node_id"]
+
+                # skip heap ops for edges to edge nodes
+                # if isinstance(cur_top.get_node(n_id), topology.EdgeNode):
+                #     continue
+                
+                avail_bandwidth = n["bps_capacity"] - n["bps_reserved"]
+
+                if (avail_bandwidth < required_bandwidth or avail_bandwidth <= 0):
+                    n_edge_cost = math.inf
+                else:
+                    n_edge_cost = 1/avail_bandwidth
+
+                # Set the cost of a node
+                # Note: cost is cumulative weight to that node according to the
+                # summation of the costs along the path to it.
+                try:
+                    n_total_cost = best[e.dst_node_id].weight + n_edge_cost
+                except KeyError:
+                    n_total_cost = n_edge_cost
+
+                if (e.dst_node_id != n["src_node_id"]):
+                    print("error in dijkstra")
+
+                # Create the version of the edge to put into the heap
+                fringe = self.wedge(n["src_node_id"], n["dst_node_id"],
+                                    n["src_port"], n["dst_port"],
+                                    n_total_cost)
+                               
+                if n_id not in best:
+                    heap.push(fringe)
+                    best[n_id] = fringe
+                elif fringe.weight < best[n_id].weight:
+                    heap.decrease_key(best[n_id], fringe)
+                    best[n_id] = fringe
+
+        del previous[src_node_id]
+        return {
+            "cost": cost,
+            "previous": previous
+        }
         
     def distance_vector(self, src_node_id, top_id, required_bandwidth):
         """
@@ -643,7 +899,7 @@ class ResourceManager(manager.Manager):
         }
 
 
-    def resource_allocation_algorithm(self, edge_req, top_id):
+    def resource_alloc_algorithm(self, edge_req, top_id):
         """
         Fulfill an edge request by allocating resources on the network and fog
         devices.
@@ -668,6 +924,7 @@ class ResourceManager(manager.Manager):
         cpu_pct_req = edge_req["cpu"]
         mem_mb_req = edge_req["ram"]
         bandwidth_bps_req = edge_req["bandwidth"]
+        proto_num = int(edge_req["proto_num"])
 
         # Get all fog nodes which can service the edge request
         # print("GETTING ALL POSSIBLE FOG NODES WHICH CAN SERVICE EDGE")
@@ -691,28 +948,29 @@ class ResourceManager(manager.Manager):
 
         # Run the distance vector algorithm to find good paths to the fog node
         # print("RUNNING DISTANCE VECTOR")
-        res = self.distance_vector(edge_node_id, top_id, bandwidth_bps_req)
+        # res = self.distance_vector(edge_node_id, top_id, bandwidth_bps_req)
+        res = self.dijkstra(edge_node_id, top_id, bandwidth_bps_req)
         # print("DISTANCE VECTOR RETURNED")
-        parent = res["parent"]
-        distance = res["distance"]
+        previous = res["previous"]
+        cost = res["cost"]
 
         # Choose the fog node along the path with the greatest amount of
         # bandwidth
         # print("FINDING THE LOWEST COST FOG NODE")
         cheapest_fog_node = {
             "node_id": None,
-            "distance": math.inf
+            "cost": math.inf
         }
         for node_id in request_servicers:
-            if distance[node_id] < cheapest_fog_node["distance"]:
+            if cost[node_id] < cheapest_fog_node["cost"]:
                 cheapest_fog_node["node_id"] = node_id
-                cheapest_fog_node["distance"] = distance[node_id]
+                cheapest_fog_node["cost"] = cost[node_id]
 
         fog_node_id = cheapest_fog_node["node_id"]
         
-        # If the cheapest fog node has a distance of infinity, then there
+        # If the cheapest fog node has a cost of infinity, then there
         # exists no path to that node!
-        if cheapest_fog_node["distance"] == math.inf:
+        if cheapest_fog_node["cost"] == math.inf:
             # print("SENDING FAILURE MSG BACK TO EDGE: NO PATH EXISTS TO FOG")
             response["resp-code"] = -1
             response["node_id"] = None
@@ -745,14 +1003,14 @@ class ResourceManager(manager.Manager):
         # Initialize all hops for later
         # print("INITIALIZING ALL HOPS")
         alloc["hops"] = {}
-        cur = parent[fog_node_id]
-        print("\n============================================================\n")
-        print("CHOSEN PATH:")
-        print(cur["dst_node_id"], end="")
+        cur = previous[fog_node_id]
+        #print("\n============================================================\n")
+        #print("CHOSEN PATH:")
+        #print(cur["dst_node_id"], end="")
         while True:
-            print(" <-> " + cur["src_node_id"], end="")
+            # print(" <-> " + cur["src_node_id"], end="")
             # Stop at edge
-            if cur["src_node_id"] not in parent:
+            if cur["src_node_id"] not in previous:
                 break
 
             cur_node = top_mgr.get_ovsnode(cur["src_node_id"])
@@ -761,18 +1019,18 @@ class ResourceManager(manager.Manager):
                 "top_id": cur_node.top_id,
                 "ovsdb_id": cur_node.ovsdb_id,
                 "br_ovsdb_id": cur_node.br_ovsdb_id,
-                # This is correct - the parent vector format makes naming weird
+                # This is correct - the previous vector format makes naming weird
                 "dst_port": cur["src_port"],
                 "queues": {},
                 "flows": []
             }
 
-            cur = parent[cur["src_node_id"]]
+            cur = previous[cur["src_node_id"]]
 
             alloc["hops"][switch_id]["src_port"] = cur["dst_port"]
             
-        print()
-        print("\n============================================================\n")
+        #print()
+        #print("\n============================================================\n")
         
         # Store data on edge and fog
         fog_node_id = cheapest_fog_node["node_id"]
@@ -802,7 +1060,7 @@ class ResourceManager(manager.Manager):
 
         # Traverse the path and allocate resources
         # print("ATTEMPTING TO ALLOCATE RESOURCES")
-        cur = parent[fog_node_id]
+        cur = previous[fog_node_id]
         num_flows = 0
         while True:
             # For reference
@@ -814,6 +1072,9 @@ class ResourceManager(manager.Manager):
             src_port = cur["src_port"]
             src_node = cur_top.get_node(src_node_id)
 
+            # print("src: %s" % src_node_id)
+            # print("dst: %s" % dst_node_id)
+
             # 1. Create Queues to limit bandwidth in 1 direction:
             # Create queue on the src_side (unless it is an edge node)
             # Queue points up (created on top of src node)
@@ -824,7 +1085,7 @@ class ResourceManager(manager.Manager):
 
                 # QoS Already exists - get the qos_id put the queue on it.
                 src_qos_id = "defaultqos" + str(src_port.rsplit(":", 1)[-1])
-                top_mgr.add_qos_queue(src_node_id, src_qos_id, src_queue_id)
+                top_mgr.place_queue_on_qos(src_node_id, src_qos_id, src_queue_id)
 
                 # Update alloc
                 queues = alloc["hops"][src_node_id]["queues"]
@@ -844,7 +1105,7 @@ class ResourceManager(manager.Manager):
 
                 # QoS Already exists - get the qos_id put the queue on it.
                 dst_qos_id = "defaultqos" + str(dst_port.rsplit(":", 1)[-1])
-                top_mgr.add_qos_queue(dst_node_id, dst_qos_id, dst_queue_id)
+                top_mgr.place_queue_on_qos(dst_node_id, dst_qos_id, dst_queue_id)
 
                 # Update alloc
                 queues = alloc["hops"][dst_node_id]["queues"]
@@ -865,10 +1126,9 @@ class ResourceManager(manager.Manager):
                     top_id, src_node_id, 0, flow_prefix,
                     edge_ip_addr, fog_ip_addr,
                     src_port, src_queue_id, src_queue_num,
-                    fog_port, True, 2000
+                    fog_port, proto_num, True, 2000
                 )
-                # print("RAA CREATED 2 FLOWS ON {}".format(src_node_id))
-
+                
                 # Update alloc
                 flows = alloc["hops"][src_node_id]["flows"]
                 for flow_id in flow_ids:
@@ -888,10 +1148,9 @@ class ResourceManager(manager.Manager):
                     top_id, dst_node_id, 0, flow_prefix,
                     fog_ip_addr, edge_ip_addr,
                     dst_port, dst_queue_id, dst_queue_num,
-                    fog_port, False, 2000
+                    fog_port, proto_num, False, 2000
                 )
-                # print("RAA CREATED 2 FLOWS ON {}".format(dst_node_id))
-
+                
                 # Update alloc
                 flows = alloc["hops"][dst_node_id]["flows"]
                 for flow_id in flow_ids:
@@ -905,17 +1164,13 @@ class ResourceManager(manager.Manager):
             cur_top.add_link_reservation(dst_node_id, dst_port, bandwidth_bps_req)
             cur_top.add_link_reservation(src_node_id, src_port, bandwidth_bps_req)
 
-            # Stop if no parent(next node is edge)
-            if cur["src_node_id"] not in parent:
-                # print("EXITING RAA")
+            # Stop if no previous(next node is edge)
+            if cur["src_node_id"] not in previous:
+                #print("EXITING RAA")
                 break
 
-            cur = parent[cur["src_node_id"]]
-            # print("ANOTHER RAA ITER")
-            
-            
-        # print("RAA CREATED {} FLOWS (s/b multiple of 4)".format(num_flows))
-
+            cur = previous[cur["src_node_id"]]
+                        
         # Update other alloc information
         alloc["edge_ip_addr"] = edge_ip_addr
         alloc["fog_ip_addr"] = fog_ip_addr
@@ -924,7 +1179,7 @@ class ResourceManager(manager.Manager):
         return response
     
 
-    def resource_deallocation_algorithm(self, edge_req, top_id):
+    def resource_dealloc_algorithm(self, edge_req, top_id):
         # Get manager references
         top_mgr = self.mgrs["top"]
         cur_top = top_mgr.get_topology(top_id)
@@ -976,7 +1231,7 @@ class ResourceManager(manager.Manager):
                 qos_id = cur_hop["queues"][queue_id]["qos_id"]
 
                 # - Remove queues from QoS'es
-                top_mgr.remove_qos_queue(node_id, qos_id, queue_id)
+                top_mgr.remove_queue_from_qos(node_id, qos_id, queue_id)
 
                 # - Delete the queues
                 top_mgr.delete_queue(node_id, queue_id)
@@ -1030,19 +1285,21 @@ class DockerSwarm:
         try:
             resp = client.join_swarm(remote_addrs=[self.ctrlr_ip_addr], join_token=self.join_token)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error while joining swarm")
+            print("DockerAPIError: Error while joining swarm", file=sys.stderr)
+            #EXTRAPRINT
             if hasattr(e, 'message'):
-                print(e.message)
+                 print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             # Force it to leave other swarm first and retry joining swarm
-            print("Attempting to make: {} leave its current swarm".format(fog_ip))
+            print("Attempting to make: {} leave its current swarm".format(fog_ip),
+                  file=sys.stderr)
             self.leave_swarm(fog_ip, fog_port)
             self.join_swarm(node_id, fog_ip, fog_port)
             return
 
         if resp is not True:
-            print("Error: Swarm join request was unsuccessful")
+            print("Error: Swarm join request was unsuccessful", file=sys.stderr)
             return
 
         # Add new swarm node into dictionary
@@ -1055,42 +1312,63 @@ class DockerSwarm:
         try:
             resp = client.leave_swarm()
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error while leaving swarm")
+            print("DockerAPIError: Error while leaving swarm", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return False
 
         if resp is not True:
-            print("Error: Swarm leave request was unsuccessful")
+            print("Error: Swarm leave request was unsuccessful", file=sys.stderr)
         # TODO: Remove node from dictionary here. Necessary for a dynamic topology
         return resp
 
+    # Remove a node from the swarm
+    def remove_node(self, node_id):
+        client = docker.APIClient(base_url='unix://var/run/docker.sock')
+
+        try:
+            swarm_node_id = self.nodes[node_id]["ID"]
+            resp = client.remove_node(swarm_node_id, force=True)
+        except (docker.errors.APIError, docker.errors.NotFound) as e:
+            print("DockerAPIError: Error while removing swarm node",
+        file=sys.stderr)
+            if hasattr(e,'message'):
+                print(e.message, file=sys.stderr)
+            else:
+                print(e,file=sys.stderr)
+            return
+
+        if resp is not True:
+            print("Error: Removing swarm node was  unsuccessful",
+            file=sys.stderr)
+            
     # Shutdown all swarm membership
     def close_swarm(self, topology):
     
-        # Make worker nodes leave swarm
+        # Make worker nodes leave swarm and remove node
         for node_id, swarm_node  in self.nodes.items():
             fog_ip = swarm_node["Status"]["Addr"]
-            print(topology.nodes[node_id])
+            #print(topology.nodes[node_id])
             docker_port = topology.nodes[node_id].docker_port
             self.leave_swarm(fog_ip, docker_port)
+            self.remove_node(node_id)
         
         # Make manager node leave swarm
         client = docker.APIClient(base_url='unix://var/run/docker.sock')
         try:
             resp = client.leave_swarm(force=True)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error while closing swarm")
+            print("DockerAPIError: Error while closing swarm", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return
 
         if resp is not True:
-            print("Error: Swarm close request was unsuccessful")
+            print("Error: Swarm close request was unsuccessful", file=sys.stderr)
 
     # List information about nodes in swarm
     # Returns a dictionary or None if an error occurred
@@ -1099,11 +1377,11 @@ class DockerSwarm:
         try:
             resp = client.nodes(filters=filters)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error while listing swarm nodes")
+            print("DockerAPIError: Error while listing swarm nodes", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return None
         return resp
 
@@ -1113,32 +1391,48 @@ class DockerSwarm:
         for node in nodes:
             if(node["Status"]["Addr"]==node_ip):
                 return node
-        print("Warning: Node is not in swarm")
+        #print("Warning: Node is not in swarm")
 
     # Create a docker service
     # This will create one container for the service on the specified node
     # Return (True, service_id) on success, (False, Non) on failure
-    def create_container(self, node_id, request, port=None):
+    def create_container(self, node_id, request, proxy_port=None):
         client = docker.APIClient(base_url='unix://var/run/docker.sock')
 
-        # expose port on container
-        ports = {}
-        if (port == None):
-            port = self.generate_port_num(node_id)
-        published_port = port
-        target_port = port
-        protocol = 'tcp'
-        publish_mode = 'host'
+        # Define port mapping between host and container
+        if proxy_port == None:
+            proxy_port = self.generate_port_num(node_id) # find open port number
+        published_port =  proxy_port # proxy port on host
+        target_port = request["service_port"] # container port
+
+        # Get transport protocol (either 'tcp' or 'udp')
+        # protocol = 'tcp'
+
+        if request["proto_num"] == 6:
+            protocol = 'tcp'
+        elif request["proto_num"] == 17:
+            protocol = 'udp'
+        else:
+            if __debug__:
+                print("Protocol number is not currently supported. ", file=sys.stderr)
+        #     protocol = None # When protocol=None docker creates tcp port by default
+
+        '''
+        Host mode bypasses swarm's default routing mesh.
+        This means you are alway accessing the instance of the 
+        service running on a specific node (request is not forwarded
+        to another node in the routing mesh which is also running
+        the service)
+        '''
+        publish_mode = 'host' 
+
         port_config_tuple = (target_port, protocol, publish_mode)
-        #port_config_tuple = (target_port, None)
-        ports[published_port] = port_config_tuple
-        endpoint_spec = docker.types.EndpointSpec(ports=ports)
+        port_config_dict = {published_port: port_config_tuple}
+        endpoint_spec = docker.types.EndpointSpec(ports=port_config_dict)
         
         # specify container specs
-        port_env = str(port)
         container_spec = docker.types.ContainerSpec(image=request["image"],
-                                                    tty=True,
-                                                    env={"PORT":port_env})
+                                                    tty=True)
 
         # specify resource constraints
         cpu_limit = self.compute_cpu_limit(node_id, request["cpu"]) 
@@ -1148,7 +1442,7 @@ class DockerSwarm:
         # place container on specific node
         swarm_id = self.nodes[node_id]["ID"]
         placement = docker.types.Placement(constraints=["node.id=={}".format(swarm_id)]) 
-
+        
         # consolidate the service configuration
         task_template = docker.types.TaskTemplate(container_spec=container_spec,
                                                   resources=resources,
@@ -1159,14 +1453,14 @@ class DockerSwarm:
             service_key = client.create_service(task_template=task_template,
                                                 endpoint_spec=endpoint_spec)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error creating a container")
+            print("DockerAPIError: Error creating a container", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return (False, None)
 
-        print("Successfully created swarm service: {}".format(service_key))
+        #print("Successfully created swarm service: {}".format(service_key))
         # Check if this is the first service for node_id
         if node_id not in self.services:
             self.services[node_id] = []
@@ -1178,7 +1472,7 @@ class DockerSwarm:
         # Add service info to dictionary
         self.services[node_id].append(service_info)
         # Add port to list of used ports
-        self.ports[node_id].append(port)
+        self.ports[node_id].append(published_port)
         return (True, service_key["ID"])
 
     # Convert from percentage of CPU to NanoCPUs
@@ -1216,11 +1510,11 @@ class DockerSwarm:
         try:
             resp = client.inspect_service(service_id)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error inspecting service")
+            print("DockerAPIError: Error inspecting service", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return None
         return resp
     
@@ -1232,17 +1526,16 @@ class DockerSwarm:
         try:
             resp = client.remove_service(service_id)
         except docker.errors.APIError as e:
-            print("DockerAPIError: Error removing container")
+            print("DockerAPIError: Error removing container", file=sys.stderr)
             if hasattr(e, 'message'):
-                print(e.message)
+                print(e.message, file=sys.stderr)
             else:
-                print(e)
+                print(e, file=sys.stderr)
             return False
 
         if resp is not True:
             # Which one of these messages belongs herre?
-            print("Error: Remove service request was unsuccessful")
-            print("Successfully removed swarm service: {}".format(service_id))
+            print("Error: Remove service request was unsuccessful", file=sys.stderr)
             return False
         else:
             # delete service from dictionaries
